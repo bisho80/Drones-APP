@@ -4,6 +4,10 @@ import {
   Alert,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   Stack,
   Table,
@@ -33,6 +37,7 @@ export default function DronesPage() {
 
   const [selectedUsername, setSelectedUsername] = useState(auth?.username || "");
   const [form, setForm] = useState({ ...initialForm, username: auth?.username || "" });
+  const [openCreate, setOpenCreate] = useState(false);
 
   useEffect(() => {
     dispatch(fetchUnits());
@@ -57,6 +62,7 @@ export default function DronesPage() {
     })).unwrap();
     if (selectedUsername) dispatch(fetchDronesByUsername(selectedUsername));
     setForm({ ...initialForm, username: form.username });
+    setOpenCreate(false);
   };
 
   return (
@@ -89,33 +95,9 @@ export default function DronesPage() {
           </Paper>
 
           <Paper sx={{ p: 2 }}>
-            <Stack component="form" direction={{ xs: "column", md: "row" }} spacing={2} onSubmit={onSubmit}>
-              <TextField
-                label="Username"
-                select
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                required
-                fullWidth
-              >
-                {users.map((u) => (
-                  <MenuItem key={u.id} value={u.username}>
-                    {u.username} ({u.baseLocation})
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required fullWidth />
-              <TextField label="Model" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} required fullWidth />
-              <TextField label="Serial Number" value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} required fullWidth />
-              <TextField label="Unit" select value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })} fullWidth>
-                <MenuItem value="">None</MenuItem>
-                {units.map((u) => <MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>)}
-              </TextField>
-              <TextField label="Category" select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} fullWidth>
-                <MenuItem value="">None</MenuItem>
-                {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
-              </TextField>
-              <Button type="submit" variant="contained" fullWidth sx={{ minWidth: { md: 90 } }}>Add</Button>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ sm: "center" }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Drone Module</Typography>
+              <Button variant="contained" onClick={() => setOpenCreate(true)}>Add Drone</Button>
             </Stack>
           </Paper>
         </>
@@ -152,6 +134,47 @@ export default function DronesPage() {
           </Table>
         </TableContainer>
       </Paper>
+
+      <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="md">
+        <DialogTitle>Add Drone</DialogTitle>
+        <DialogContent>
+          <Stack component="form" spacing={2} sx={{ pt: 1 }} onSubmit={onSubmit}>
+            <TextField
+              label="Username"
+              select
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              required
+              fullWidth
+            >
+              {users.map((u) => (
+                <MenuItem key={u.id} value={u.username}>
+                  {u.username} ({u.baseLocation})
+                </MenuItem>
+              ))}
+            </TextField>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <TextField label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required fullWidth />
+              <TextField label="Model" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} required fullWidth />
+            </Stack>
+            <TextField label="Serial Number" value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} required fullWidth />
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <TextField label="Unit" select value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })} fullWidth>
+                <MenuItem value="">None</MenuItem>
+                {units.map((u) => <MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>)}
+              </TextField>
+              <TextField label="Category" select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} fullWidth>
+                <MenuItem value="">None</MenuItem>
+                {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+              </TextField>
+            </Stack>
+            <DialogActions sx={{ px: 0 }}>
+              <Button onClick={() => setOpenCreate(false)}>Cancel</Button>
+              <Button type="submit" variant="contained">Create</Button>
+            </DialogActions>
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }

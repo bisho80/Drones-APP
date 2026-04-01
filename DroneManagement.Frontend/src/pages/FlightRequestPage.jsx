@@ -4,6 +4,10 @@ import {
   Alert,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   Stack,
   Table,
@@ -21,6 +25,7 @@ import { fetchMyDrones } from "../slices/droneSlice";
 import {
   fetchPermits,
   fetchMyPermits,
+  fetchPermitsByUsername,
   submitPermitPayment,
   submitPermitRequest
 } from "../slices/permitSlice";
@@ -67,6 +72,7 @@ export default function FlightRequestPage() {
   const auth = useSelector((s) => s.auth.user);
   const isAdminLike = ["SuperAdmin", "Admin"].includes(auth?.role);
   const [form, setForm] = useState(() => ({ ...createInitialForm(), username: auth?.username || "" }));
+  const [openCreate, setOpenCreate] = useState(false);
 
   useEffect(() => {
     if (isAdminLike) {
@@ -122,6 +128,7 @@ export default function FlightRequestPage() {
       username: prev.username,
       droneId: prev.droneId || (dronesState.items[0] ? String(dronesState.items[0].id) : "")
     }));
+    setOpenCreate(false);
   };
 
   return (
@@ -129,37 +136,14 @@ export default function FlightRequestPage() {
       <Typography variant="h6">{isAdminLike ? t("permitTracking") : t("permitRequestForm")}</Typography>
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      {!isAdminLike ? <Paper sx={{ p: 2 }}>
-        <Stack component="form" spacing={2} onSubmit={onSubmit}>
-          <TextField
-            label="Drone ID"
-            select
-            value={form.droneId}
-            onChange={(e) => setForm({ ...form, droneId: e.target.value })}
-            required
-            helperText={dronesState.items.length ? `Drones: ${dronesState.items.map((d) => `${d.id} (${d.serialNumber})`).join(", ")}` : "No drones available."}
-          >
-            {dronesState.items.map((d) => (
-              <MenuItem key={d.id} value={d.id}>{d.id} - {d.serialNumber}</MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Flight Purpose" value={form.flightPurpose} onChange={(e) => setForm({ ...form, flightPurpose: e.target.value })} required />
-          <TextField label="Location Label" value={form.locationLabel} onChange={(e) => setForm({ ...form, locationLabel: e.target.value })} required />
-          <TextField label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
-          <TextField label="Scheduled Start Time" type="datetime-local" value={form.scheduledStartTime} onChange={(e) => setForm({ ...form, scheduledStartTime: e.target.value })} InputLabelProps={{ shrink: true }} required />
-          <TextField label="Scheduled End Time" type="datetime-local" value={form.scheduledEndTime} onChange={(e) => setForm({ ...form, scheduledEndTime: e.target.value })} InputLabelProps={{ shrink: true }} required />
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField label="URC Latitude" type="number" value={form.urcLat} onChange={(e) => setForm({ ...form, urcLat: e.target.value })} required fullWidth />
-            <TextField label="URC Longitude" type="number" value={form.urcLng} onChange={(e) => setForm({ ...form, urcLng: e.target.value })} required fullWidth />
+      {!isAdminLike ? (
+        <Paper sx={{ p: 2 }}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ sm: "center" }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Permit Request Module</Typography>
+            <Button variant="contained" onClick={() => setOpenCreate(true)}>{t("submitPermit")}</Button>
           </Stack>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField label="LLC Latitude" type="number" value={form.llcLat} onChange={(e) => setForm({ ...form, llcLat: e.target.value })} required fullWidth />
-            <TextField label="LLC Longitude" type="number" value={form.llcLng} onChange={(e) => setForm({ ...form, llcLng: e.target.value })} required fullWidth />
-          </Stack>
-          <TextField label="Max Altitude" type="number" value={form.maxAltitude} onChange={(e) => setForm({ ...form, maxAltitude: e.target.value })} required />
-          <Button type="submit" variant="contained" sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}>{t("submitPermit")}</Button>
-        </Stack>
-      </Paper> : <Alert severity="info">{t("adminReadonlyPermitInfo")}</Alert>}
+        </Paper>
+      ) : <Alert severity="info">{t("adminReadonlyPermitInfo")}</Alert>}
 
       <Paper>
         {loading ? <Stack p={2}><CircularProgress /></Stack> : null}
@@ -212,6 +196,48 @@ export default function FlightRequestPage() {
           </Table>
         </TableContainer>
       </Paper>
+
+      <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="md">
+        <DialogTitle>{t("submitPermit")}</DialogTitle>
+        <DialogContent>
+          <Stack component="form" spacing={2} sx={{ pt: 1 }} onSubmit={onSubmit}>
+            <TextField
+              label="Drone ID"
+              select
+              value={form.droneId}
+              onChange={(e) => setForm({ ...form, droneId: e.target.value })}
+              required
+              helperText={dronesState.items.length ? `Drones: ${dronesState.items.map((d) => `${d.id} (${d.serialNumber})`).join(", ")}` : "No drones available."}
+            >
+              {dronesState.items.map((d) => (
+                <MenuItem key={d.id} value={d.id}>{d.id} - {d.serialNumber}</MenuItem>
+              ))}
+            </TextField>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <TextField label="Flight Purpose" value={form.flightPurpose} onChange={(e) => setForm({ ...form, flightPurpose: e.target.value })} required fullWidth />
+              <TextField label="Location Label" value={form.locationLabel} onChange={(e) => setForm({ ...form, locationLabel: e.target.value })} required fullWidth />
+            </Stack>
+            <TextField label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <TextField label="Scheduled Start Time" type="datetime-local" value={form.scheduledStartTime} onChange={(e) => setForm({ ...form, scheduledStartTime: e.target.value })} InputLabelProps={{ shrink: true }} required fullWidth />
+              <TextField label="Scheduled End Time" type="datetime-local" value={form.scheduledEndTime} onChange={(e) => setForm({ ...form, scheduledEndTime: e.target.value })} InputLabelProps={{ shrink: true }} required fullWidth />
+            </Stack>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <TextField label="URC Latitude" type="number" value={form.urcLat} onChange={(e) => setForm({ ...form, urcLat: e.target.value })} required fullWidth />
+              <TextField label="URC Longitude" type="number" value={form.urcLng} onChange={(e) => setForm({ ...form, urcLng: e.target.value })} required fullWidth />
+            </Stack>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <TextField label="LLC Latitude" type="number" value={form.llcLat} onChange={(e) => setForm({ ...form, llcLat: e.target.value })} required fullWidth />
+              <TextField label="LLC Longitude" type="number" value={form.llcLng} onChange={(e) => setForm({ ...form, llcLng: e.target.value })} required fullWidth />
+            </Stack>
+            <TextField label="Max Altitude" type="number" value={form.maxAltitude} onChange={(e) => setForm({ ...form, maxAltitude: e.target.value })} required />
+            <DialogActions sx={{ px: 0 }}>
+              <Button onClick={() => setOpenCreate(false)}>Cancel</Button>
+              <Button type="submit" variant="contained">{t("submitPermit")}</Button>
+            </DialogActions>
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }

@@ -55,7 +55,7 @@ public class PermitWorkflowService(
                 p.Status == PermitStatus.PaymentSubmitted ||
                 p.Status == PermitStatus.PendingPayment ||
                 p.Status == PermitStatus.AwaitingInternalApproval)
-            .OrderBy(p => p.ScheduledStartTime)
+            .OrderByDescending(p => p.ScheduledStartTime)
             .ToListAsync(cancellationToken);
     }
 
@@ -734,6 +734,7 @@ public class PermitWorkflowService(
                 OwnerEmailSent = p.OwnerEmailSent,
                 AuthorityEmailSent = p.AuthorityEmailSent,
                 AirForceAlertSent = p.AirForceAlertSent,
+                FlightStartedNotifiedAt = p.FlightStartedNotifiedAt,
                 IsLicenseRevoked = p.IsLicenseRevoked,
                 IsRefundIssued = p.IsRefundIssued,
                 RefundStatus = p.RefundStatus,
@@ -816,7 +817,52 @@ public class PermitWorkflowService(
             permit.AirForceAlertSent = true;
         }
 
-        if (upcoming.Count > 0)
+        var startedCandidates = await dbContext.Set<FlightPermit>()
+            .Include(p => p.Drone)
+            .ThenInclude(d => d!.User)
+            .Where(p => p.Status == PermitStatus.Approved &&
+                        p.FlightStartedNotifiedAt == null &&
+                        p.ScheduledStartTime <= now)
+            .ToListAsync(cancellationToken);
+
+        var startedFlights = startedCandidates
+            .Where(p => (p.ScheduledEndTime ?? p.ExpiresAt ?? p.ScheduledStartTime.AddHours(2)) >= now)
+            .ToList();
+
+        foreach (var permit in startedFlights)
+        {
+            var owner = permit.Drone?.User;
+            var ownerBase = owner?.BaseLocation ?? string.Empty;
+            var startText = permit.ScheduledStartTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            var finishText = (permit.ScheduledEndTime ?? permit.ExpiresAt ?? permit.ScheduledStartTime.AddHours(2))
+                .ToLocalTime()
+                .ToString("yyyy-MM-dd HH:mm:ss");
+            var permitCode = permit.PermitSerialNumber ?? $"Permit #{permit.Id}";
+            var message =
+                $"Flight started: {permitCode} | User: {owner?.FullName ?? owner?.Username ?? "Unknown"} | Phone: {permit.Phone} | Start: {startText} | Finish: {finishText}.";
+
+            var superAdmins = await dbContext.Users
+                .Where(u => u.Role == UserRole.SuperAdmin)
+                .Select(u => u.Username)
+                .ToListAsync(cancellationToken);
+            foreach (var super in superAdmins)
+            {
+                inAppNotificationService.Send("ops-airforce", super, message, permit.Id);
+            }
+
+            var baseAdmins = await dbContext.Users
+                .Where(u => u.Role == UserRole.Admin && u.BaseLocation == ownerBase)
+                .Select(u => u.Username)
+                .ToListAsync(cancellationToken);
+            foreach (var admin in baseAdmins)
+            {
+                inAppNotificationService.Send("ops-airforce", admin, message, permit.Id);
+            }
+
+            permit.FlightStartedNotifiedAt = now;
+        }
+
+        if (upcoming.Count > 0 || startedFlights.Count > 0)
             await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

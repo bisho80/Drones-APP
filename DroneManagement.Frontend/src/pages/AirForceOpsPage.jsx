@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Alert,
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   MenuItem,
   Paper,
   Stack,
@@ -30,6 +34,8 @@ export default function AirForceOpsPage() {
   const isSuperAdminLike = ["SuperAdmin"].includes(auth?.role);
   const [now, setNow] = useState(Date.now());
   const [alertForm, setAlertForm] = useState({ targetAdminUsername: "", message: "", permitId: "" });
+  const [flightStartAlert, setFlightStartAlert] = useState(null);
+  const audioContextRef = useRef(null);
 
   useEffect(() => {
     if (!isAdminLike) return;
@@ -75,6 +81,14 @@ export default function AirForceOpsPage() {
     return { active, upcoming, finished, incidents };
   }, [opsItems, now]);
 
+  const sortedOpsItems = useMemo(() => {
+    return [...opsItems].sort((a, b) => {
+      const aEnd = new Date(a.scheduledEndTime || a.expiresAt || a.scheduledStartTime).getTime();
+      const bEnd = new Date(b.scheduledEndTime || b.expiresAt || b.scheduledStartTime).getTime();
+      return bEnd - aEnd;
+    });
+  }, [opsItems]);
+
   const formatDuration = (ms) => {
     const sec = Math.max(0, Math.floor(ms / 1000));
     const h = Math.floor(sec / 3600);
@@ -82,6 +96,47 @@ export default function AirForceOpsPage() {
     const s = sec % 60;
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
+
+  const playSoftBuzzer = () => {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const context = audioContextRef.current || new AudioCtx();
+    audioContextRef.current = context;
+
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(540, context.currentTime);
+    gainNode.gain.setValueAtTime(0.0001, context.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.035, context.currentTime + 0.08);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 2);
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 2);
+  };
+
+  useEffect(() => {
+    if (!isAdminLike) return;
+    const startedPermit = opsItems.find((permit) => {
+      const start = new Date(permit.scheduledStartTime).getTime();
+      const end = permit.scheduledEndTime
+        ? new Date(permit.scheduledEndTime).getTime()
+        : permit.expiresAt
+          ? new Date(permit.expiresAt).getTime()
+          : start + 2 * 60 * 60 * 1000;
+      const seen = JSON.parse(sessionStorage.getItem("seen_started_flights") || "[]");
+      return permit.status === "Approved" && now >= start && now <= end && !seen.includes(permit.id);
+    });
+
+    if (!startedPermit) return;
+    setFlightStartAlert(startedPermit);
+    playSoftBuzzer();
+    const seen = JSON.parse(sessionStorage.getItem("seen_started_flights") || "[]");
+    sessionStorage.setItem("seen_started_flights", JSON.stringify([...new Set([...seen, startedPermit.id])]));
+  }, [opsItems, now, isAdminLike]);
+
+  const closeFlightStartAlert = () => setFlightStartAlert(null);
 
   return (
     <Stack spacing={3}>
@@ -105,7 +160,7 @@ export default function AirForceOpsPage() {
           Live permits with auto alert 30 minutes before scheduled start.
         </Typography>
         <Stack spacing={1} mt={1}>
-          {opsItems.slice(0, 8).map((p) => (
+          {sortedOpsItems.slice(0, 8).map((p) => (
             <Paper key={p.id} variant="outlined" sx={{ p: 1.2 }}>
               <Typography variant="body2">
                 Permit #{p.id} - {p.locationLabel} ({p.flightPurpose})
@@ -172,20 +227,28 @@ export default function AirForceOpsPage() {
               <TableRow>
                 <TableCell>ID</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>User</TableCell>
+                <TableCell>License / Permit</TableCell>
+                <TableCell>Phone</TableCell>
                 <TableCell>Location</TableCell>
                 <TableCell>Start</TableCell>
+                <TableCell>Finish</TableCell>
                 <TableCell>Minutes To Start</TableCell>
-                <TableCell>Timer</TableCell>
+                <TableCell>Time Left</TableCell>
                 <TableCell>Alert</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {opsItems.map((p) => (
+              {sortedOpsItems.map((p) => (
                 <TableRow key={p.id} sx={{ backgroundColor: p.incidentReported ? "#ffe8e8" : undefined }}>
                   <TableCell>{p.id}</TableCell>
                   <TableCell>{p.status}</TableCell>
+                  <TableCell>{p.username || "-"}</TableCell>
+                  <TableCell>{p.permitSerialNumber || "-"}</TableCell>
+                  <TableCell>{p.phone || "-"}</TableCell>
                   <TableCell>{p.locationLabel}</TableCell>
                   <TableCell>{new Date(p.scheduledStartTime).toLocaleString()}</TableCell>
+                  <TableCell>{new Date(p.scheduledEndTime || p.expiresAt || p.scheduledStartTime).toLocaleString()}</TableCell>
                   <TableCell>{p.minutesToStart}</TableCell>
                   <TableCell>
                     {(() => {
@@ -196,7 +259,7 @@ export default function AirForceOpsPage() {
                           ? new Date(p.expiresAt).getTime()
                           : start + 2 * 60 * 60 * 1000;
                       if (now < start) return `Starts in ${formatDuration(start - now)}`;
-                      if (now <= end) return `Flying ${formatDuration(now - start)}`;
+                      if (now <= end) return `Ends in ${formatDuration(end - now)}`;
                       return `Ended ${formatDuration(now - end)} ago`;
                     })()}
                   </TableCell>
@@ -217,6 +280,25 @@ export default function AirForceOpsPage() {
           </Table>
         </TableContainer>
       </Paper>
+
+      <Dialog open={Boolean(flightStartAlert)} onClose={closeFlightStartAlert} fullWidth maxWidth="sm">
+        <DialogTitle>Flight Started</DialogTitle>
+        <DialogContent>
+          {flightStartAlert ? (
+            <Stack spacing={1} sx={{ pt: 1 }}>
+              <Typography><strong>User:</strong> {flightStartAlert.username}</Typography>
+              <Typography><strong>Permit:</strong> {flightStartAlert.permitSerialNumber || `#${flightStartAlert.id}`}</Typography>
+              <Typography><strong>Phone:</strong> {flightStartAlert.phone}</Typography>
+              <Typography><strong>Start:</strong> {new Date(flightStartAlert.scheduledStartTime).toLocaleString()}</Typography>
+              <Typography><strong>Finish:</strong> {new Date(flightStartAlert.scheduledEndTime || flightStartAlert.expiresAt || flightStartAlert.scheduledStartTime).toLocaleString()}</Typography>
+              <Typography><strong>Location:</strong> {flightStartAlert.locationLabel}</Typography>
+            </Stack>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeFlightStartAlert} variant="contained">Acknowledge</Button>
+        </DialogActions>
+      </Dialog>
       </>
       )}
     </Stack>

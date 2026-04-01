@@ -12,6 +12,11 @@ public static class MockDataSeeder
 {
     public static async Task SeedAsync(AppDbContext db)
     {
+        var hasExistingUsers = await db.Users.AnyAsync();
+        var hasRealUsers = await db.Users.AnyAsync(u => u.Username != "legacy.user");
+        var hasDrones = await db.Drones.AnyAsync();
+        var hasFlightRequests = await db.FlightRequests.AnyAsync();
+
         if (!await db.NoFlyZones.AnyAsync())
         {
             db.NoFlyZones.AddRange(
@@ -58,7 +63,19 @@ public static class MockDataSeeder
             }
         }
 
-        if (await db.Users.AnyAsync() || await db.Drones.AnyAsync() || await db.FlightRequests.AnyAsync())
+        if (hasExistingUsers && !hasRealUsers && !hasDrones && !hasFlightRequests)
+        {
+            var legacyPlaceholder = await db.Users.FirstOrDefaultAsync(u => u.Username == "legacy.user");
+            if (legacyPlaceholder is not null)
+            {
+                db.Users.Remove(legacyPlaceholder);
+                await db.SaveChangesAsync();
+            }
+
+            hasExistingUsers = false;
+        }
+
+        if (hasExistingUsers || hasDrones || hasFlightRequests)
         {
             var allUsers = await db.Users.ToListAsync();
             foreach (var user in allUsers)

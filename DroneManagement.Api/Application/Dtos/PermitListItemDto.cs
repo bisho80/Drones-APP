@@ -29,6 +29,7 @@ public class PermitListItemDto
     public bool OwnerEmailSent { get; set; }
     public bool AuthorityEmailSent { get; set; }
     public bool AirForceAlertSent { get; set; }
+    public DateTime? FlightStartedNotifiedAt { get; set; }
     public bool IsLicenseRevoked { get; set; }
     public bool IsRefundIssued { get; set; }
     public RefundStatus RefundStatus { get; set; }

@@ -13,6 +13,6 @@ public static class PasswordHasher
 
     public static bool Verify(string password, string storedHash)
     {
-        return Hash(password) == storedHash || password == storedHash;
+        return Hash(password) == storedHash;
     }
 }

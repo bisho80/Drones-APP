@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button, Container, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Paper,
+  Stack,
+  Typography
+} from "@mui/material";
 import { NavLink, Navigate, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "./slices/authSlice";
@@ -34,9 +45,7 @@ export default function App() {
 
   const nextAlert = useMemo(() => {
     const seen = JSON.parse(sessionStorage.getItem("seen_permit_alerts") || "[]");
-    return permitItems.find(
-      (p) => p.requiresAirForceAlert && p.status === "Approved" && !seen.includes(p.id)
-    );
+    return permitItems.find((p) => p.requiresAirForceAlert && p.status === "Approved" && !seen.includes(p.id));
   }, [permitItems]);
 
   useEffect(() => {
@@ -53,54 +62,101 @@ export default function App() {
 
   if (!token) return <Navigate to="/login" replace />;
 
-  const navItems = [
-    { to: "/", label: t("dashboard") },
-    { to: "/drones", label: t("drones") },
-    { to: "/flight-request", label: t("flightRequest") },
-    ...(isAdminLike ? [{ to: "/admin-requests", label: t("adminRequests") }] : []),
-    ...(isAdminLike ? [{ to: "/airforce-ops", label: t("airForceOps") }] : []),
-    ...(isAdminLike ? [{ to: "/master-data", label: t("masterData") }] : [])
+  const moduleItems = [
+    { to: "/", label: t("dashboard"), section: "General" },
+    { to: "/drones", label: t("drones"), section: "General" },
+    { to: "/permits", label: "Permits", section: "General" },
+    ...(isAdminLike ? [{ to: "/admin-requests", label: t("adminRequests"), section: "Operations" }] : []),
+    ...(isAdminLike ? [{ to: "/airforce-ops", label: t("airForceOps"), section: "Operations" }] : []),
+    ...(isAdminLike ? [{ to: "/users", label: "Users", section: "Entities" }] : []),
+    ...(isAdminLike ? [{ to: "/units", label: "Units", section: "Entities" }] : []),
+    ...(isAdminLike ? [{ to: "/categories", label: "Categories", section: "Entities" }] : []),
+    ...(isAdminLike ? [{ to: "/licenses", label: "Licenses", section: "Entities" }] : []),
+    ...(isAdminLike ? [{ to: "/no-fly-zones", label: "No-Fly Zones", section: "Entities" }] : [])
   ];
   const unreadCount = notifications.filter((x) => !x.isRead).length;
+  const groupedModules = moduleItems.reduce((acc, item) => {
+    acc[item.section] = [...(acc[item.section] || []), item];
+    return acc;
+  }, {});
 
   return (
-    <Box sx={{ minHeight: "100vh", py: 4, background: "linear-gradient(135deg, #d9f1ec 0%, #f7fafc 55%, #fef3e2 100%)" }}>
-      <Container maxWidth="xl">
-        <Paper sx={{ p: 2, mb: 3, background: "linear-gradient(90deg, #005f73, #0a9396)", color: "white" }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Stack>
+    <Box sx={{ minHeight: "100vh", p: { xs: 2, md: 3 }, background: "linear-gradient(135deg, #d9f1ec 0%, #f7fafc 55%, #fef3e2 100%)" }}>
+      <Stack spacing={3}>
+        <Paper sx={{ p: 2.5, background: "linear-gradient(90deg, #005f73, #0a9396)", color: "white" }}>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={2}>
+            <Stack spacing={0.5}>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>{t("appTitle")}</Typography>
               <Typography variant="body2">
                 {user?.username} ({user?.role}) - {user?.baseLocation}
               </Typography>
             </Stack>
-            <Button size="small" variant="outlined" sx={{ color: "white", borderColor: "white" }} onClick={toggleLanguage}>
-              {language === "en" ? "AR" : "EN"}
-            </Button>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Button size="small" variant="outlined" sx={{ color: "white", borderColor: "white" }} onClick={toggleLanguage}>
+                {language === "en" ? "AR" : "EN"}
+              </Button>
+              <Button variant="outlined" sx={{ color: "white", borderColor: "white" }} onClick={() => setShowNotifications(true)}>
+                {t("notifications")} ({unreadCount})
+              </Button>
+              <Button color="inherit" variant="contained" sx={{ bgcolor: "rgba(255,255,255,0.14)" }} onClick={() => dispatch(logout())}>
+                {t("logout")}
+              </Button>
+            </Stack>
           </Stack>
         </Paper>
 
-        <Stack direction="row" spacing={1} mb={3} sx={{ flexWrap: "wrap", rowGap: 1 }}>
-          {navItems.map((item) => (
-            <Button
-              key={item.to}
-              component={NavLink}
-              to={item.to}
-              end={item.to === "/"}
-              sx={{ borderRadius: 20, px: 2, "&.active": { backgroundColor: "secondary.main", color: "white" } }}
-              variant="text"
-            >
-              {item.label}
-            </Button>
-          ))}
-          <Button variant="outlined" onClick={() => setShowNotifications(true)}>
-            {t("notifications")} ({unreadCount})
-          </Button>
-          <Button color="error" variant="outlined" onClick={() => dispatch(logout())}>{t("logout")}</Button>
-        </Stack>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "280px minmax(0, 1fr)" },
+            gap: 3,
+            alignItems: "start"
+          }}
+        >
+          <Paper sx={{ p: 2, position: { lg: "sticky" }, top: { lg: 24 }, borderRadius: "5px" }}>
+            <Stack spacing={2}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>Modules</Typography>
+                <Chip size="small" color="primary" label={user?.role} />
+              </Stack>
+              {Object.entries(groupedModules).map(([section, items]) => (
+                <Stack key={section} spacing={1}>
+                  <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                    {section}
+                  </Typography>
+                  {items.map((item) => (
+                    <Button
+                      key={item.to}
+                      component={NavLink}
+                      to={item.to}
+                      end={item.to === "/"}
+                      variant="text"
+                      sx={{
+                        justifyContent: "flex-start",
+                        px: 1.5,
+                        py: 1.1,
+                        borderRadius: "5px",
+                        color: "text.primary",
+                        "&.active": {
+                          bgcolor: "#0a9396",
+                          color: "white"
+                        }
+                      }}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </Stack>
+              ))}
+            </Stack>
+          </Paper>
 
-        <Outlet />
-      </Container>
+          <Stack spacing={3}>
+            <Outlet />
+          </Stack>
+        </Box>
+      </Stack>
+
       <Dialog open={Boolean(activeAlert)} onClose={dismissAlert} fullWidth maxWidth="sm">
         <DialogTitle>Flight Alert - less than 30 minutes</DialogTitle>
         <DialogContent>
@@ -121,6 +177,7 @@ export default function App() {
           <Button onClick={dismissAlert} variant="contained">Acknowledge</Button>
         </DialogActions>
       </Dialog>
+
       <Dialog open={showNotifications} onClose={() => setShowNotifications(false)} fullWidth maxWidth="sm">
         <DialogTitle>In-App Notifications</DialogTitle>
         <DialogContent>

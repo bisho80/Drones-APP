@@ -9,8 +9,38 @@ export const appTheme = createTheme({
     error: { main: "#d62828" },
     warning: { main: "#f4a261" }
   },
-  shape: { borderRadius: 14 },
+  shape: { borderRadius: 5 },
   typography: {
     fontFamily: "'Segoe UI', 'Tahoma', sans-serif"
+  },
+  components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: 5
+        }
+      }
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 5
+        }
+      }
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 5
+        }
+      }
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 5
+        }
+      }
+    }
   }
 });
